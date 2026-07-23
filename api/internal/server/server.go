@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/dylanwhitney/conspiracy-board/api/internal/auth"
 	"github.com/dylanwhitney/conspiracy-board/api/internal/config"
 	"github.com/dylanwhitney/conspiracy-board/api/internal/web"
 )
@@ -42,8 +43,15 @@ func New(logger *slog.Logger, pool *pgxpool.Pool, cfg config.Config) http.Handle
 			_, _ = w.Write([]byte("ready"))
 		})
 
+		authHandler := auth.NewHandler(
+			auth.NewService(auth.NewStore(pool), logger),
+			logger,
+			cfg.SecureCookies(),
+		)
+		r.Mount("/auth", authHandler.Routes())
+		r.With(authHandler.RequireUser).Get("/me", authHandler.Me)
+
 		// Feature routes land here as build order progresses:
-		// r.Mount("/auth", auth.Routes(...))
 		// r.Mount("/boards", boards.Routes(...))
 	})
 

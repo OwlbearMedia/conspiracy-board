@@ -38,6 +38,13 @@ func Load() (Config, error) {
 	return cfg, nil
 }
 
+// SecureCookies reports whether cookies should carry the Secure flag.
+// Only local dev runs without TLS; previews and production sit behind
+// HTTPS (ALB/CloudFront).
+func (c Config) SecureCookies() bool {
+	return c.Env != "local"
+}
+
 func getEnv(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
