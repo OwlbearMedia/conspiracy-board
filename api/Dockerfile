@@ -3,7 +3,7 @@
 #   docker build -f api/Dockerfile --target prod .
 
 # --- dev: hot reload for local compose (source is volume-mounted) ----------
-FROM golang:1.22-alpine AS dev
+FROM golang:1.26-alpine AS dev
 WORKDIR /app
 RUN go install github.com/air-verse/air@v1.52.3
 COPY api/go.mod api/go.sum* ./
@@ -21,7 +21,7 @@ COPY web/ ./
 RUN pnpm build
 
 # --- build -----------------------------------------------------------------
-FROM golang:1.22-alpine AS build
+FROM golang:1.26-alpine AS build
 WORKDIR /app
 COPY api/go.mod api/go.sum* ./
 RUN go mod download
