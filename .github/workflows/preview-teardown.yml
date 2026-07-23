@@ -1,0 +1,94 @@
+# Tears down preview environments two ways:
+#   1. Immediately when a preview/** branch is deleted
+#   2. Nightly sweep destroying previews whose branch no longer exists
+#      (safety net: branch-delete webhooks can be missed; forgotten previews
+#      cost real money)
+name: Preview Teardown
+
+on:
+  delete:
+  schedule:
+    - cron: "0 6 * * *" # nightly sweep
+  workflow_dispatch:
+    inputs:
+      slug:
+        description: "Preview slug to destroy (manual override)"
+        required: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  teardown-on-delete:
+    if: github.event_name == 'delete' && github.event.ref_type == 'branch' && startsWith(github.event.ref, 'preview/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Derive slug
+        id: slug
+        run: |
+          RAW="${{ github.event.ref }}"
+          RAW="${RAW#preview/}"
+          SLUG=$(echo "$RAW" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g; s/--*/-/g; s/^-//; s/-$//' | cut -c1-30)
+          echo "slug=$SLUG" >> "$GITHUB_OUTPUT"
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Destroy preview stack
+        working-directory: infra/envs/preview
+        run: |
+          terraform init
+          terraform workspace select "preview-${{ steps.slug.outputs.slug }}"
+          terraform destroy -auto-approve \
+            -var "slug=${{ steps.slug.outputs.slug }}" \
+            -var "image=unused"
+          terraform workspace select default
+          terraform workspace delete "preview-${{ steps.slug.outputs.slug }}"
+
+  nightly-sweep:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # need all remote branches to compare against
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Destroy orphaned previews
+        working-directory: infra/envs/preview
+        run: |
+          terraform init
+          MANUAL="${{ inputs.slug }}"
+          for ws in $(terraform workspace list | tr -d '* ' | grep '^preview-' || true); do
+            SLUG="${ws#preview-}"
+            if [ -n "$MANUAL" ] && [ "$SLUG" != "$MANUAL" ]; then continue; fi
+            # keep the preview if a matching branch still exists
+            if [ -z "$MANUAL" ] && git branch -r | sed 's|.*origin/||' | grep -q "^preview/.*$" ; then
+              MATCH=$(git branch -r | sed 's|.*origin/||' | grep '^preview/' | while read -r b; do
+                s=$(echo "${b#preview/}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g; s/--*/-/g; s/^-//; s/-$//' | cut -c1-30)
+                [ "$s" = "$SLUG" ] && echo yes && break
+              done)
+              [ "$MATCH" = "yes" ] && continue
+            fi
+            echo "destroying orphaned preview: $SLUG"
+            terraform workspace select "$ws"
+            terraform destroy -auto-approve -var "slug=$SLUG" -var "image=unused"
+            terraform workspace select default
+            terraform workspace delete "$ws"
+          done

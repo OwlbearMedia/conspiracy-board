@@ -1,0 +1,63 @@
+# Production deploy on merge to main.
+# Prerequisites (created by infra/envs/prod):
+#   - AWS_DEPLOY_ROLE_ARN repo variable: IAM role trusting GitHub OIDC, scoped to this repo
+#   - ECR repo, ECS cluster/service, S3 bucket, CloudFront distribution
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  id-token: write # OIDC federation — no stored AWS keys
+  contents: read
+
+concurrency: production
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPO: conspiracy-board-api
+  ECS_CLUSTER: conspiracy-board
+  ECS_SERVICE: api
+  MIGRATE_TASK_FAMILY: api-migrate
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr
+
+      - name: Build and push API image
+        run: |
+          IMAGE="${{ steps.ecr.outputs.registry }}/${ECR_REPO}:${GITHUB_SHA}"
+          docker build -f api/Dockerfile --target prod -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      - name: Run migrations (one-off task, must succeed before rollout)
+        run: |
+          # TODO(step 6 of build order): register task def revision with $IMAGE,
+          # aws ecs run-task --launch-type FARGATE ... and poll exit code.
+          echo "migration task placeholder"
+
+      - name: Roll out API
+        run: |
+          # TODO: aws ecs update-service --cluster $ECS_CLUSTER --service $ECS_SERVICE \
+          #   --force-new-deployment (with new task def revision pointing at $IMAGE)
+          echo "ecs update placeholder"
+
+      - name: Build and publish frontend
+        run: |
+          corepack enable
+          cd web && pnpm install --frozen-lockfile && pnpm build
+          # TODO: aws s3 sync dist "s3://$FRONTEND_BUCKET" --delete
+          # TODO: aws cloudfront create-invalidation --distribution-id $CF_DIST --paths "/*"

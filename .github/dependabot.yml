@@ -1,0 +1,38 @@
+# Dependabot PRs run CI with a read-only token and NO repository secrets.
+# ci.yml is deliberately secret-free so these PRs get full validation;
+# keep it that way — any future PR job needing AWS creds must be split into
+# a workflow that skips dependabot (if: github.actor != 'dependabot[bot]').
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /api
+    schedule:
+      interval: weekly
+    groups:
+      go-deps:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm # also covers pnpm via pnpm-lock.yaml
+    directory: /web
+    schedule:
+      interval: weekly
+    groups:
+      web-deps:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: docker
+    directories: [/api, /] # api/Dockerfile + compose base images
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: terraform
+    directories: [/infra/envs/prod, /infra/envs/preview]
+    schedule:
+      interval: weekly

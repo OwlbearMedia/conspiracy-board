@@ -1,0 +1,70 @@
+# Ephemeral preview environments — opt-in by branch name (ADR-6).
+#
+# Push a branch named preview/<anything> and you get:
+#   https://<slug>.preview.<domain>
+# where <slug> is the branch name minus the prefix, sanitized for DNS.
+#
+# One Fargate task serving API + embedded SPA, a host rule on the shared ALB,
+# and its own database on the shared RDS instance. ~$9/mo per preview left
+# running; teardown is automatic on branch delete + a nightly sweep.
+name: Preview Deploy
+
+on:
+  push:
+    branches: ["preview/**"]
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency: preview-${{ github.ref }}
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPO: conspiracy-board-api
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Derive DNS-safe slug from branch name
+        id: slug
+        run: |
+          RAW="${GITHUB_REF_NAME#preview/}"
+          # lowercase, non-alphanumeric -> dash, trim dashes, cap at 30 chars
+          SLUG=$(echo "$RAW" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g; s/--*/-/g; s/^-//; s/-$//' | cut -c1-30)
+          if [ -z "$SLUG" ]; then echo "branch produces empty slug"; exit 1; fi
+          echo "slug=$SLUG" >> "$GITHUB_OUTPUT"
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr
+
+      - name: Build and push preview image (SPA embedded)
+        run: |
+          IMAGE="${{ steps.ecr.outputs.registry }}/${ECR_REPO}:preview-${{ steps.slug.outputs.slug }}-${GITHUB_SHA::7}"
+          docker build -f api/Dockerfile --target prod -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Apply preview stack (workspace per slug)
+        working-directory: infra/envs/preview
+        run: |
+          terraform init
+          terraform workspace select -or-create "preview-${{ steps.slug.outputs.slug }}"
+          terraform apply -auto-approve \
+            -var "slug=${{ steps.slug.outputs.slug }}" \
+            -var "image=${IMAGE}"
+
+      - name: Report URL
+        run: |
+          echo "### Preview environment" >> "$GITHUB_STEP_SUMMARY"
+          echo "https://${{ steps.slug.outputs.slug }}.preview.${{ vars.APP_DOMAIN }}" >> "$GITHUB_STEP_SUMMARY"

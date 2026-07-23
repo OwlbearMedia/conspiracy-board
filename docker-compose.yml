@@ -1,0 +1,76 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: conspiracy
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-localdev}
+      POSTGRES_DB: conspiracy
+    ports:
+      - "5432:5432" # exposed for psql/GUI clients; remove if unwanted
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U conspiracy"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  migrate:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+      target: dev
+    command: ["go", "run", "./cmd/api", "migrate"]
+    working_dir: /app
+    environment:
+      DATABASE_URL: postgres://conspiracy:${POSTGRES_PASSWORD:-localdev}@postgres:5432/conspiracy?sslmode=disable
+    volumes:
+      - ./api:/app
+      - gomod:/go/pkg/mod
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+      target: dev
+    environment:
+      DATABASE_URL: postgres://conspiracy:${POSTGRES_PASSWORD:-localdev}@postgres:5432/conspiracy?sslmode=disable
+      APP_ENV: local
+    volumes:
+      - ./api:/app
+      - gomod:/go/pkg/mod
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    image: node:20-alpine
+    working_dir: /web
+    command: sh -c "corepack enable && pnpm install && pnpm dev"
+    environment:
+      COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+    volumes:
+      - ./web:/web
+      - webmodules:/web/node_modules
+      - pnpmstore:/root/.local/share/pnpm/store
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - api
+      - web
+
+volumes:
+  pgdata:
+  gomod:
+  webmodules:
+  pnpmstore:

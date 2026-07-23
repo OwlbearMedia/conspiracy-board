@@ -1,0 +1,38 @@
+# Auto-merges Dependabot PRs for patch/minor updates once CI passes.
+#
+# Requires two one-time repo settings:
+#   1. Settings → General → "Allow auto-merge" enabled
+#   2. Branch protection on main with the CI jobs (api, web, docker) as
+#      required status checks — auto-merge waits on these; without them
+#      this would merge instantly, green or not.
+#
+# Note: Dependabot-triggered workflows get a read-only GITHUB_TOKEN by
+# default; the permissions block below explicitly elevates it. Repository
+# secrets are still unavailable — this workflow only uses GITHUB_TOKEN.
+name: Dependabot Auto-merge
+
+on: pull_request
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Patch and minor bumps merge themselves (grouped PRs report the
+      # highest bump in the group). Majors stay open for human review.
+      - name: Enable auto-merge
+        if: contains(fromJSON('["version-update:semver-patch", "version-update:semver-minor"]'), steps.metadata.outputs.update-type)
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

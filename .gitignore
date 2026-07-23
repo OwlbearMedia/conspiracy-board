@@ -1,0 +1,10 @@
+.env
+node_modules/
+dist/
+!api/internal/web/dist/
+api/tmp/
+*.tfstate
+*.tfstate.backup
+.terraform/
+.terraform.lock.hcl
+.DS_Store
