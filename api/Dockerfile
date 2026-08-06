@@ -11,7 +11,7 @@ RUN go mod download
 CMD ["air", "-c", ".air.toml"]
 
 # --- web-build: vite bundle for single-container (preview) deploys ---------
-FROM node:20-alpine AS web-build
+FROM node:25-alpine AS web-build
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN corepack enable
 WORKDIR /web
