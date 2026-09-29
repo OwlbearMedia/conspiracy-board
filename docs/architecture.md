@@ -2,7 +2,7 @@
 
 A collaborative "cork board" web app: users pin clues to boards and connect them with strings, in real time, with other invited users. Personal project built to enterprise standards for portfolio purposes.
 
-**Status:** Approved design, pre-implementation
+**Status:** Approved design, in implementation — see [project-status.md](project-status.md) for progress against the build order (§10) and known deviations
 **Date:** 2026-07-23
 
 ---
