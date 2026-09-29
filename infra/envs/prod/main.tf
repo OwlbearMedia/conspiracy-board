@@ -1,5 +1,5 @@
 # Long-lived production environment. Skeleton — build out in step 6 of the
-# build order (ARCHITECTURE.md §10). The outputs listed at the bottom form the
+# build order (docs/architecture.md §10). The outputs listed at the bottom form the
 # contract that envs/preview consumes; keep them stable.
 
 terraform {
