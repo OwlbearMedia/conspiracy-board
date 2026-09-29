@@ -45,7 +45,7 @@ Still to do for step 2: boards CRUD + dashboard, a janitor for expired sessions 
 
 Roughly in the order they should be fixed.
 
-1. **Dependabot PRs merged while CI was red.** Until `go.sum` was committed (2026-09-28), every CI run failed with `missing go.sum entry`, yet Dependabot auto-merge kept landing PRs (#18 through #44 merged since July). That means branch protection with required checks isn't configured, which is the precondition the comment at the top of `dependabot-automerge.yml` warns about. Once CI is green, set up branch protection on `main` requiring `api`, `web`, and `docker`, or disable auto-merge until you do.
+1. **Dependabot PRs merged while CI was red.** Until 2026-09-28, every CI run failed (`api`: `go.sum` wasn't committed; `web`: `pnpm/action-setup` couldn't find the pnpm version), yet Dependabot auto-merge kept landing PRs (#18 through #44 merged since July). That means branch protection with required checks isn't configured, which is the precondition the comment at the top of `dependabot-automerge.yml` warns about. Once CI is green, set up branch protection on `main` requiring `api`, `web`, and `docker`, or disable auto-merge until you do.
 2. **Deploy fails on every push to `main`.** There's no AWS role yet (`vars.AWS_DEPLOY_ROLE_ARN` is unset) and the rollout steps are placeholders. Until step 6, consider gating the job with `if: vars.AWS_DEPLOY_ROLE_ARN != ''` or switching it to `workflow_dispatch`.
 3. **Preview Teardown fails every night** for the same reason (its schedule runs daily at 06:00 UTC). Gate it the same way.
 4. **Node 20 is past end-of-life** (April 2026). It's used in `docker-compose.yml`, `api/Dockerfile` (`web-build` stage), and `ci.yml`. The `@v4` actions also print Node 20 deprecation warnings, and Dependabot PRs for newer action majors are open.
@@ -72,8 +72,7 @@ Deliberate or not, the code currently differs from [architecture.md](architectur
 
 ## Suggested next steps
 
-1. Confirm CI is green now that `go.sum` is committed.
-2. Configure branch protection, and gate Deploy and Teardown until AWS exists (issues 1–3).
-3. Rebase `auth` onto `main`, finish and merge the auth API.
-4. Decide the same-origin question and the sqlc question, and record both in `architecture.md`.
-5. Continue step 2: boards CRUD API, then the frontend auth and dashboard (add vue-router and a small API client, see [web/docs/api-integration.md](../web/docs/api-integration.md)).
+1. Configure branch protection, and gate Deploy and Teardown until AWS exists (issues 1–3).
+2. Rebase `auth` onto `main`, finish and merge the auth API.
+3. Decide the same-origin question and the sqlc question, and record both in `architecture.md`.
+4. Continue step 2: boards CRUD API, then the frontend auth and dashboard (add vue-router and a small API client, see [web/docs/api-integration.md](../web/docs/api-integration.md)).

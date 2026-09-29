@@ -6,7 +6,7 @@ All automation is in [`.github/`](../.github/). The target design is in [archite
 
 | Workflow | Trigger | What it does | State |
 |---|---|---|---|
-| [ci.yml](../.github/workflows/ci.yml) | every PR, push to `main` | **api**: `go vet`, `go build`, run migrations and `go test -race` against a Postgres service container. **web**: `pnpm install --frozen-lockfile`, `typecheck`, `build`. **docker**: build the prod image (no push) | Should pass once `go.sum` is committed; confirm on the next run |
+| [ci.yml](../.github/workflows/ci.yml) | every PR, push to `main` | **api**: `go vet`, `go build`, run migrations and `go test -race` against a Postgres service container. **web**: `pnpm install --frozen-lockfile`, `typecheck`, `build`. **docker**: build the prod image (no push) | Green |
 | [deploy.yml](../.github/workflows/deploy.yml) | push to `main` | OIDC into AWS, build and push the image to ECR, then (placeholders) run migrations as a one-off ECS task, update the ECS service, and sync the SPA to S3 + invalidate CloudFront | Fails: no AWS yet (build step 6) |
 | [preview-deploy.yml](../.github/workflows/preview-deploy.yml) | push to `preview/**` | Build an image with the SPA embedded, then `terraform apply` a per-slug workspace in `infra/envs/preview` | Needs prod infra |
 | [preview-teardown.yml](../.github/workflows/preview-teardown.yml) | `preview/**` branch deleted; nightly 06:00 UTC; manual | Destroy that preview's workspace. The nightly sweep destroys any preview whose branch is gone | Nightly run fails: no AWS yet |
