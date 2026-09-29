@@ -8,3 +8,4 @@ api/tmp/
 .terraform/
 .terraform.lock.hcl
 .DS_Store
+.pnpm-store/
