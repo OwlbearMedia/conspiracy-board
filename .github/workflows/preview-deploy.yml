@@ -38,7 +38,7 @@ jobs:
           if [ -z "$SLUG" ]; then echo "branch produces empty slug"; exit 1; fi
           echo "slug=$SLUG" >> "$GITHUB_OUTPUT"
 
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
